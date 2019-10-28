@@ -2,113 +2,37 @@ import xml.etree.ElementTree as ET
 import sys
 import re
 import math
-import datetime
+import datetime  
 
 
-class StartLongest:
-  # Start with longest path, i.e. all points used and got back to n points
-  def __init__(self,Points):
-  	self.totaldistance = []
-  	self.points = list(Points)
-  	self.calculateLongestPath(self.points)
+RADIUS = 6378137.0 # in meters on the equator
 
-  def calculateLongestPath(self, Points):
-  	distancepoints = []
+def y2lat(aY):
+   return math.degrees(math.atan(math.exp(aY / RADIUS)) * 2 - math.pi/2)
 
-  	for i,p in enumerate(Points):
-  		if i == 0:
-  			distance = 0
-  			lastpoint = p
-  		else :
-  			distance = Haversine(lastpoint, p).meters
-  		lastpoint = p
-  		distancepoints.append({'distance': distance, 'index': i, 'point': p})
-  	self.distancepoints = distancepoints
-  	self.totaldistance.append(sum(map(lambda dp: dp['distance'], distancepoints)))
+def x2lon(aX):
+   return math.degrees(aX / RADIUS)
 
-  def getMinIndex(self):
+def lat2y(a):
+  return math.log(math.tan(math.pi / 4 + math.radians(a) / 2)) * RADIUS
 
-  	# Find the point with minimum distance
-  	if len(self.points) < 3: 
-  		# We have two or less points, remove the first
-  		return 0;
-  	# If the first leg is the smalles, remove the first point,
-  	# if not remove the one between the smallest
-  	smallestd = min(map(lambda dp: dp['distance'], self.distancepoints))
-  	if self.distancepoints[1]['distance'] == smallestd:
-  		# The first distance is the smallest, remove it
-  		print("removing the first point")
-  		return 0
-  	if self.distancepoints[-1]['distance'] == smallestd:
-  		# The last distance is the smallest, remove it
-  		print("removing the last point")
-  		return len(self.distancepoints) -1
-
-  	# Guess that we need to remove the second element, if not proven otherwise
-  	indextoremove = 1
-  	mindistance = self.distancepoints[1]['distance'] + self.distancepoints[2]['distance']
-  	for i,p in enumerate(self.distancepoints):
-  		if i == 0: continue
-  		if i == 1: continue
-  		candidated = self.distancepoints[i-1]['distance'] + self.distancepoints[i]['distance']
-  		if candidated < mindistance:
-  			# The index we are at has the shortest path so far with its distance plus
-  			# the last point's distance. The last point is hence in the middle of the shortest
-  			# path so far
-  			indextoremove = i
-  			mindistance = candidated
-  	return indextoremove
-
-  def calculateAll(self):
-  	while self.points:
-  		indextoremove = self.getMinIndex()
-  		# print("Deleting minindex %s. Left %s" % (indextoremove, len(self.distancepoints)))
-  		del self.points[indextoremove]
-  		dptoremove = self.distancepoints[indextoremove]
-  		# Always make sure the first element has distance 0
-  		self.distancepoints[0]['distance'] = 0
-  		
-  		del self.distancepoints[indextoremove]
-  		# If it was the first or last 
-  		if indextoremove == 0: 
-  			self.totaldistance.append(sum(map(lambda dp: dp['distance'], self.distancepoints)))
-  			continue
-  		if indextoremove >= len(self.distancepoints): 
-  			self.totaldistance.append(sum(map(lambda dp: dp['distance'], self.distancepoints)))
-  			continue
-  		# We need to recalculate the distance between the two points
-  		# surrounding the removed point
-  		newdistance = Haversine(self.distancepoints[indextoremove-1]['point'], self.distancepoints[indextoremove]['point']).meters
-  		self.distancepoints[indextoremove]['distance'] = newdistance
-  		# Then calculate new totaldistance
-  		self.totaldistance.append(sum(map(lambda dp: dp['distance'], self.distancepoints)))
-
-  
+def lon2x(a):
+  return math.radians(a) * RADIUS
 
 class Diameter:
   # convex hull (Graham scan by x-coordinate) and diameter of a set of points
   # David Eppstein, UC Irvine, 7 Mar 2002
   def diameter(self, Points):
-       '''Given a list of 2d points, returns the pair that's farthest apart.'''
-       usedPoints = list(Points)
-       usedPoints = map(lambda p: (6371000*math.cos(math.radians(p[1]))*math.cos(math.radians(p[0])),6371000*math.cos(math.radians(p[1]))*math.sin(math.radians(p[0]))), Points)
-       diam,pair = max([((p[0]-q[0])**2 + (p[1]-q[1])**2, (p,q))
-                        for p,q in self.rotatingCalipers(usedPoints)])
-       print("The diameter is %s" % diam)
-       found1 = 0
-       for i,p in enumerate(Points):
-       	if p[0] == pair[1][0] and p[1] == pair[1][1]:
-       		print("Found a match in index %d" % i)
-       		found1 = i
-       found2 = 0
-       for i,p in enumerate(Points):
-       	if p[0] == pair[0][0] and p[1] == pair[0][1]:
-       		print("Found a match in index %d" % i)
-       		found2 = i
-       #print("Max distance between (%s,%s) and (%s,%s)" % (pair[0][0],pair[0][1],pair[1][0],pair[1][1]))
-       print("Hard distance is %d" % Haversine(Points[10], Points[6537]).meters)
-       return Haversine(pair[0], pair[1]).meters
-       # return diam
+    '''Given a list of 2d points, returns the pair that's farthest apart.'''
+    usedPoints = map(lambda p: (lon2x(p[0]), lat2y(p[1])), Points)
+    diam,pair = max([((p[0]-q[0])**2 + (p[1]-q[1])**2, (p,q)) for p,q in self.rotatingCalipers(usedPoints)])
+    lon1 = x2lon(pair[0][0])
+    lat1 = y2lat(pair[0][1])
+    lon2 = x2lon(pair[1][0])
+    lat2 = y2lat(pair[1][1])
+    
+    print("Max distance between (%s,%s) and (%s,%s)" % (lon1, lat1, lon2, lat2))
+    return Haversine((lon1, lat1), (lon2, lat2)).meters
 
   def __init__(self,Points):
   	self.meters = self.diameter(Points)
@@ -149,10 +73,6 @@ class Diameter:
                 (L[j][1]-L[j-1][1])*(U[i+1][0]-U[i][0]):
             i += 1
         else: j -= 1
-
-    
-
-    
 
 
 class Haversine:
@@ -214,69 +134,6 @@ def calculate2distance3(blines):
 	Points = map(lambda bl: (bl['longdec'], bl['latdec']), blines)
 	return Diameter(Points).meters
 
-def calculate2distance4(blines):
-	Points = map(lambda bl: (bl['longdec'], bl['latdec']), blines)
-	sl = StartLongest(Points)
-	sl.calculateAll()
-	return sl
-
-def calculate2distance2(blines):
-	# Find the points that have max distance
-	maxd = 0
-	lines = list(blines)
-	line = lines.pop()
-	start = (line['longdec'], line['latdec'])
-	distances = map(lambda bl: Haversine(start, (bl['longdec'], bl['latdec'])).meters, lines)
-	indexmax1 = 0
-	for index, d in enumerate(distances):
-		if d > maxd:
-			maxd = d
-			indexmax1 = index
-	print("Found max in round 1 %d as index %d" % (maxd, indexmax1))
-	start = (lines[indexmax1]['longdec'], lines[indexmax1]['latdec'])
-	distances2 = map(lambda bl: Haversine(start, (bl['longdec'], bl['latdec'])).meters, lines)
-	maxround2  = 0
-	indexmax2 = 0
-	for index, d in enumerate(distances2):
-		if d > maxround2:
-			maxround2 = d
-			indexmax2 = index
-	print("Found max in round 2 %d as index %d" % (maxround2, indexmax2))
-	maxround2 = reduce(lambda a, b: max(a, b), distances2)
-	print("Found max in round 2 %d" % maxround2)
-	return max(maxround2, maxd)
-
-
-def calculate2distance(blines):
-	# Find the points that have max distance
-	maxd = 0
-	lines = list(blines)
-	line = lines.pop()
-	while line:
-		if not lines: break	
-		start = (line['longdec'], line['latdec'])
-		#distances = map(lambda bl: Haversine(start, (bl['longdec'], bl['latdec'])).meters, lines)
-		distances = []
-		for bl in lines:
-			maxnow = Pythagoras(start, (bl['longdec'], bl['latdec'])).meters
-			#maxnow = Haversine(start, (bl['longdec'], bl['latdec'])).meters
-			#maxnow = math.sqrt(math.pow(line['longdec']-bl['longdec'],2) + math.pow(line['latdec']-bl['latdec'],2))
-			#maxnow = maxd
-			# distances.append(maxnow)
-			maxd = max(maxd, maxnow)
-		#maxnow = reduce(lambda a, b: max(a, b), distances)
-		#maxd = max(maxd, maxnow)
-		line = lines.pop()
-		# 2min32s with map reduce
-		# 2min28swith for-loop then reduce
-		# with for-loop and max inlined
-		# 2min21s with Pythagoras instead of Haversine
-		# 21364m is the distance(?)(open distance)
-		# 21170m With convex hull algorithm
-
-	return maxd
-
-
 filepath = sys.argv[1]
 
 with open(filepath, 'r') as file:
@@ -313,17 +170,8 @@ with open(filepath, 'r') as file:
 	print('Max heigth: %d' % findMaxHeight(blines))
 	print('Duration: %d seconds' % calculateDuration(blines))
 	print('Flight date: %s' % startdate)
-	#print('Distance between 2 points: %dm' % calculate2distance(blines))
-	#print('Distance between 2 points: %dm' % calculate2distance2(blines))
 	print('Distance between 2 points: %sm' % calculate2distance3(blines))
-	#startlongest = calculate2distance4(blines)
-	#startlongest.calculateAll()
-
-	#for i,d in enumerate(startlongest.totaldistance):
-	#	print("distance %i: %d" % (i,d))
 	
-	#print('Total distance: %dm' % startlongest.totaldistance[0])
-
 
 print ('Number of Bs: %d' % numofb)
 
